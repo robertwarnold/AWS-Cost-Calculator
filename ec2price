@@ -1,0 +1,142 @@
+#	ec2-price - AWS EC2 Pricing Tool.
+#	
+#	Author: Anubhav Mishra
+#
+import argparse
+import json
+import urllib.request
+import urllib.error
+import urllib.parse
+
+
+# Define colours for cli outputs
+HEADER = '\033[95m'
+OKBLUE = '\033[94m'
+OKGREEN = '\033[92m'
+WARNING = '\033[93m'
+FAIL = '\033[91m'
+ENDC = '\033[0m'
+
+def getPricing(url):
+	try:
+		price_data = urllib.request.urlopen(url).read()
+	
+	except (urllib.error.HTTPError, e):
+    		print(HEADER + 'Error:' + ENDC)
+    		print(e)
+    		print('')
+	    	return None
+	except (urllib.error.URLError, e):
+	    	print(HEADER + 'Error:' + ENDC)
+    		print(e)
+    		print('')
+	    	return None
+	except (http.client.HTTPException, e):
+	    	print(HEADER + 'Error:' + ENDC)
+	    	print(e)
+	    	print('')
+	    	return None
+	else:
+		data = json.loads(price_data) 
+		return data
+
+
+def getAvailableRegions(data):
+	regions = []
+	for k in data['config']['regions']:
+		regions.append(k['region'])
+	return regions
+
+
+def getPriceForRegion(region, data, ec2type):
+	# Convert region and type list into string
+	region = ''.join(region)
+	if ec2type != None:
+		ec2type = ''.join(ec2type)
+	else:
+		ec2type = None
+
+	# Count the number of results
+	results = 0
+
+	print(WARNING + 'Region: ' + region + ENDC)
+	print('======================================================')
+	print(HEADER + 'Type' + '	                 ' + 'OS' + '	  ' + 'Price (USD/hour)' + ENDC)
+	print('======================================================')
+	print('')
+
+
+	for k in data['config']['regions']:
+		if k['region'] == region:
+			instancesTypes = k['instanceTypes']
+			for types in instancesTypes:
+				for obj in types['sizes']:
+					instance_size = obj['size']
+					for values in obj['valueColumns']:
+						instance_os = values['name']
+						instance_price = values['prices']['USD']
+						if ec2type != None:
+							if ec2type == instance_size:
+								print(instance_size + '	         ' + instance_os + '	  ' + instance_price)
+								results = results + 1
+								break
+						else:
+							results = results + 1
+							print(instance_size + '	         ' + instance_os + '	  ' + instance_price)
+		else:
+			continue
+	return results
+
+
+def main():
+	filters=filters = [
+  {'Field': 'regionCode',      'Value': 'us-east-2', 'Type': 'TERM_MATCH'},  # alternative notation?: {'Field': 'location', 'Value': 'US East (Ohio)', 'Type': 'TERM_MATCH'},
+  {'Field': 'operatingSystem', 'Value': 'Windows',     'Type': 'TERM_MATCH'},
+  {'Field': 'tag:Project', 'Value': ['IJet2'], 'Type': 'TERM_MATCH'},
+  {'Field': 'tag:Project', 'Value': ['ijet2-rmi'], 'Type': 'TERM_MATCH'},
+  {'Field': 'tag:Project', 'Value': ['ijet2-midtier'], 'Type': 'TERM_MATCH'},
+  {'Field': 'tag:Project', 'Value': ['tsr-server'], 'Type': 'TERM_MATCH'},
+]
+	parser = argparse.ArgumentParser(description='Tool for getting pricing for EC2 Instances.')
+	parser.add_argument('--region', type=str,
+                   help='AWS Region for the EC2 Instance. eg: us-east-1, us-west-1.')
+	parser.add_argument('--type', type=str,
+                   help='The type of EC2 Instance. eg: m3.medium, m2.2xlarge.')
+	parser.add_argument('--old', action='store_true',
+                   help='Specify \'--old\' for previous generation instances price search.')
+	args = parser.parse_args()
+
+	if args.old:
+		url = "https://a0.awsstatic.com/pricing/1/deprecated/ec2/previous-generation/linux-od.json"
+	else:
+		url = "https://a0.awsstatic.com/pricing/1/deprecated/ec2/linux-od.json"
+
+	if args.region == None:
+		print(FAIL + "Please specify a region!. eg: ec2price --region REGION NAME" + ENDC)
+		print ('---------------------------------------------------------------------')
+		print (OKBLUE + "Available Regions:" + ENDC)
+		print ('=====================================================================')
+		pricing_data = getPricing(url)
+		if pricing_data != None:
+			regions = getAvailableRegions(pricing_data)
+			region_str = ""
+			for region in regions:
+				print(region)
+			print('')
+		else:
+			return
+
+	else:
+		pricing_data = getPricing(url)
+		if pricing_data != None:
+			results = getPriceForRegion(args.region, pricing_data, args.type)
+			if results == 0:
+				print(WARNING + 'Sorry! No results found!' + ENDC)
+				print('Try \'--old\' previous generation EC2 instances.')
+			else:
+				print('')
+		else:
+			return
+
+if __name__ == '__main__':
+	main()
