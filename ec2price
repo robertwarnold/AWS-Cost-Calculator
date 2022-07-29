@@ -1,7 +1,3 @@
-#	ec2-price - AWS EC2 Pricing Tool.
-#	
-#	Author: Anubhav Mishra
-#
 import argparse
 import json
 import urllib.request
